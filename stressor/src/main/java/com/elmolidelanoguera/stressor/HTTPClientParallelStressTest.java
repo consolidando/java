@@ -21,6 +21,16 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class HTTPClientParallelStressTest
 {
+    static String BASE_URL = "http://localhost:8080/apis/characters/";
+
+    static List<Integer> ids = Arrays.asList(
+            2, 14, 21, 18, 1, 27, 53, 3, 5, 77,
+            78, 79, 85, 103, 164, 177, 215, 232, 7, 274,
+            294, 298, 15, 299, 329, 22, 330, 39, 339, 19,
+            389, 424, 425, 381, 83, 427, 82, 430, 431, 84,
+            433, 86, 663, 113, 118, 119, 152, 209, 242, 290,
+            295, 349, 359, 405, 428, 426, 429, 432, 434
+    );
 
     static final int CYCLE_NUMBER = 100;
     static final int PLATFORM_THREAD_USED = 6; // 0 => number of cores
@@ -36,17 +46,7 @@ public class HTTPClientParallelStressTest
     private static long previousRequestTimeInNs = 0;
     private static final RealTimeStatistics realTimeStatistics = new RealTimeStatistics();
 
-    static String BASE_URL = "http://localhost:8080/apis/characters/";
-
-    static List<Integer> ids = Arrays.asList(
-            2, 14, 21, 18, 1, 27, 53, 3, 5, 77,
-            78, 79, 85, 103, 164, 177, 215, 232, 7, 274,
-            294, 298, 15, 299, 329, 22, 330, 39, 339, 19,
-            389, 424, 425, 381, 83, 427, 82, 430, 431, 84,
-            433, 86, 663, 113, 118, 119, 152, 209, 242, 290,
-            295, 349, 359, 405, 428, 426, 429, 432, 434
-    );
-
+    
     //
     public static void main(String[] args) throws InterruptedException
     {
