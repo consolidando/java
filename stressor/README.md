@@ -1,16 +1,12 @@
-# HTTP Client Parallel Stress Test
+# HTTP Server Parallel Stress Test
 
-This Java application performs parallel stress testing on an HTTP client to measure its performance under load. It sends multiple HTTP GET requests to a specified API endpoint concurrently and collects statistics such as response times, minimum and maximum response times, and the number of exceptions and errors encountered.
-
+This Java application performs parallel stress testing on an HTTP server to measure its performance under load. It sends multiple HTTP GET requests to a specified API endpoint concurrently and collects statistics such as response times, minimum and maximum response times, and the number of exceptions and errors encountered.
 
 ## Description
 
-The application sends requests for all configured `ids` a specified number of times defined in `CYCLE_NUMBER` in parallel using virtual threads. These virtual threads run within a maximum of `PLATFORM_THREAD_USED` platform threads. The goal is to determine the server's maximum throughput for a specific configuration by setting `DEFAULT_MINIMUM_TIME_BETWEEN_REQUESTS_IN_MICROSECONDS` that is the minimum time between requests in microseconds.
+The application sends requests to an HTTP server for all configured `ids` a specified number of times defined in `CYCLE_NUMBER` in parallel using virtual threads. These virtual threads run within a maximum of `PLATFORM_THREAD_USED` platform threads. The goal is to determine the server's maximum throughput for a specific server configuration by setting `DEFAULT_MINIMUM_TIME_BETWEEN_REQUESTS_IN_MICROSECONDS`, which represents the minimum time between requests in microseconds.
 
-The `PLATFORM_THREAD_USED` parameter limits the number of platform threads used by the stressor to prevent monopolization of the machine's resources.
-
-
-
+The `PLATFORM_THREAD_USED` parameter limits the number of platform threads used by the stressor to prevent monopolization of the machine's resources and allows for running both the client and the server on the same machine. For example, the server could be running inside a Docker container, which allows limiting the number of CPU cores used by each container.
 
 ## Usage
 
