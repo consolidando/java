@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class HTTPClientParallelStressTest
+public class HTTPServerParallelStressTest
 {
     static String BASE_URL = "http://localhost:8080/apis/characters/";
 
