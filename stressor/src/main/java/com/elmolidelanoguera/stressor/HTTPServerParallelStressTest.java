@@ -8,6 +8,7 @@ package com.elmolidelanoguera.stressor;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -30,12 +31,13 @@ public class HTTPServerParallelStressTest
     private static final AtomicLong concurrentRequest = new AtomicLong(0L);
     private static final AtomicLong maximumConcurrentRequestAchieve = new AtomicLong(0L);
     private static final AtomicLong exception = new AtomicLong(0);
-    //private static final AtomicLong noIOexception = new AtomicLong(0);
     private static final AtomicLong error = new AtomicLong(0);
     private static final AtomicLong responseNumber = new AtomicLong(0);
     private static final AtomicLong exceptionRequestRetries = new AtomicLong(0);
     private static long previousRequestTimeInNs = 0;
     private static final RealTimeStatistics realTimeStatistics = new RealTimeStatistics();
+
+    private static final AtomicLong timeoutException = new AtomicLong(0);
 
     public static void main(String[] args) throws InterruptedException
     {
@@ -57,7 +59,7 @@ public class HTTPServerParallelStressTest
         // Create an executor service with virtual threads
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor())
         {
-            // Initialize a latch to wait for completion of all tasks
+            // Initialize a latch to wait for completion of all tasks            
             CountDownLatch latch = new CountDownLatch(numRequestsPerCycle * Constants.CYCLE_NUMBER);
 
             // Record the start time of the test
@@ -70,7 +72,7 @@ public class HTTPServerParallelStressTest
             // Wait for all requests to complete or timeout
             if (!latch.await(Constants.MAXIMUM_TIME_ALL_THREADS, TimeUnit.MILLISECONDS))
             {
-                System.out.println("! Timeout");
+                System.out.println("!!!!!!!!!!!!!!! Timeout ..............................");
             }
 
             // Calculate total time taken for the test
@@ -79,6 +81,8 @@ public class HTTPServerParallelStressTest
             printResults(totalTime);
 
         }
+
+        System.out.println("-------> Main ends ..............................");
     }
 
     private static void setTestParameters(String[] args)
@@ -153,11 +157,11 @@ public class HTTPServerParallelStressTest
                 + " " + maximumConcurrentRequest);
 
         System.out.println("Press Enter to continue...");
-        try(Scanner scanner = new Scanner(System.in))
+        try (Scanner scanner = new Scanner(System.in))
         {
             scanner.nextLine();
         }
-   
+
     }
 
     /**
@@ -191,6 +195,7 @@ public class HTTPServerParallelStressTest
             }
         }
 
+        System.out.println("-------> Master ends ..............................");
     }
 
     private static void makeRequestWith3Retry(int requestNumber, int id, CountDownLatch latch)
@@ -201,18 +206,25 @@ public class HTTPServerParallelStressTest
             while (retries < Constants.REQUEST_RETRIES_NUMBER)
             {
                 try
-                {                    
+                {
                     makeRequest(requestNumber, id);
+                    
                     break;
                 } catch (IOException e)
                 {
-                    exceptionRequestRetries.incrementAndGet();
+                    if (e instanceof SocketTimeoutException)
+                    {
+                        timeoutException.incrementAndGet();
+                    } else
+                    {
+                        exceptionRequestRetries.incrementAndGet();
+                    }
                     retries++;
                     try
                     {
-                        TimeUnit.MILLISECONDS.sleep(Constants.TIME_BETWEEN_RETRIES*retries);
+                        TimeUnit.MILLISECONDS.sleep(Constants.TIME_BETWEEN_RETRIES * retries);
                     } catch (InterruptedException ignored)
-                    {
+                    {                        
                     }
 
                     System.out.println("! - Response " + requestNumber + ": Exception: " + e.getMessage() + " - retry: " + retries);
@@ -304,9 +316,9 @@ public class HTTPServerParallelStressTest
         System.out.println("Standard Deviation: "
                 + String.format("%.2f", realTimeStatistics.calculateStandardDeviation() / 1000_000.00) + " ms");
         //
-        System.out.println("Requests with exception retries: " + exceptionRequestRetries);
-        System.out.println("Requests with exception after retrying: " + exception);
-        //System.out.println("Requests with no IO exception: " + noIOexception);
+        System.out.println("Requests with timeout exception: " + timeoutException);
+        System.out.println("Requests with other exceptions: " + exceptionRequestRetries);
+        System.out.println("Requests with exception after retrying: " + exception);        
         System.out.println("Requests with error: " + error);
 
         System.out.println("\nCLIENT SETTINGS ---------------------------------------------");

@@ -43,7 +43,7 @@ public class Constants
     
     //
     static final int  MAXIMUM_TIME_PER_REQUEST_CONNECTION = 200; // .ms
-    static final int  MAXIMUM_TIME_PER_REQUEST_READ = 5_000; // .ms
+    static final int  MAXIMUM_TIME_PER_REQUEST_READ = 10_000; // .ms
     static final long MAXIMUM_TIME_ALL_THREADS = 60_000; // .ms
 
 }
