@@ -72,7 +72,7 @@ public class HTTPServerParallelStressTest
             // Wait for all requests to complete or timeout
             if (!latch.await(Constants.MAXIMUM_TIME_ALL_THREADS, TimeUnit.MILLISECONDS))
             {
-                System.out.println("!!!!!!!!!!!!!!! Timeout ..............................");
+                System.out.println("! - Timeout ..............................");
             }
 
             // Calculate total time taken for the test
