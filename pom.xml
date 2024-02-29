@@ -55,7 +55,7 @@
     <repository>
         <id>github</id> 
         <name>GitHub Packages</name>
-        <url>https://maven.pkg.github.com/consolidando/java</url>
+        <url>https://maven.pkg.github.com/consolidando/stressor</url>
     </repository>
 </distributionManagement>
    
