@@ -33,13 +33,14 @@ public class Constants
     static final long MAXIMUM_CONCURRENT_REQUEST = 1000;
     
     // time between request ----------------------------------------------------
-    static final int  TIME_BETWEEN_REQUESTS_BEFORE_MINIMUM_CONCURRENT_REQUEST_IN_NS = 1000; // ns
-    static final long DEFAULT_TIME_BETWEEN_REQUESTS_IN_MICROSECONDS = 2_000; // .µs
-    static final int  TIME_BETWEEN_REQUESTS_AFTER_MAXIMUM_CONCURRENT_REQUEST = 1000; // .ms
+    static final int  TIME_BETWEEN_REQUESTS_IN_CONCURRENT_REQUEST_A = 500_000; // ns 
+    static final long TIME_BETWEEN_REQUESTS_IN_CONCURRENT_REQUEST_B = 2_000_000; // .ns
+    static final int  TIME_BETWEEN_REQUESTS_IN_CONCURRENT_REQUEST_C = 1_000_000_000; // .ns
+    static final int  MINIMUM_TIME_BETWEEN_REQUEST = 1000; // ns is a virtual task switch
     
     // request retries ---------------------------------------------------------
     static final int REQUEST_RETRIES_NUMBER = 3;                                    
-    static final int TIME_BETWEEN_RETRIES = 6;  // .ms
+    static final int TIME_BETWEEN_RETRIES = 10;  // .ms
     
     //
     static final int  MAXIMUM_TIME_PER_REQUEST_CONNECTION = 200; // .ms

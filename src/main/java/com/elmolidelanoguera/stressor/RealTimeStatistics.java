@@ -12,12 +12,11 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class RealTimeStatistics
 {
-
-    private static final AtomicLong minimumRequestTimeInNs = new AtomicLong(1000_000_000L);
-    private static final AtomicLong maximumRequestTimeInNs = new AtomicLong(0L);
+    private final AtomicLong minimumRequestTimeInNs = new AtomicLong(1000_000_000L);
+    private final AtomicLong maximumRequestTimeInNs = new AtomicLong(0L);
     private final DoubleAdder sum = new DoubleAdder(); // Sum of all values
     private final DoubleAdder sumOfSquares = new DoubleAdder(); // Sum of squares of all values
-    private final LongAdder count = new LongAdder(); // Count of values
+    private final LongAdder count = new LongAdder(); // Count of values        
 
     // Method to register a value during a request concurrently
     public void addValue(long requestTimeInNs)
@@ -27,7 +26,7 @@ public class RealTimeStatistics
         count.increment();
 
         minimumRequestTimeInNs.updateAndGet(current -> Math.min(current, requestTimeInNs));
-        maximumRequestTimeInNs.updateAndGet(current -> Math.max(current, requestTimeInNs));
+        maximumRequestTimeInNs.updateAndGet(current -> Math.max(current, requestTimeInNs));                
     }
     
     public long getMaximumRequestTime()
@@ -39,6 +38,11 @@ public class RealTimeStatistics
     {
         return(minimumRequestTimeInNs.get());
     }
+       
+    public long getCount()
+    {
+        return(count.sum());
+    }
 
     // Method to calculate the mean
     public double calculateMean()
@@ -46,7 +50,7 @@ public class RealTimeStatistics
         long totalCount = count.sum();
         if (totalCount == 0)
         {
-            return Double.NaN;
+            return 0;
         }
 
         return sum.sum() / totalCount;
@@ -58,7 +62,7 @@ public class RealTimeStatistics
         long totalCount = count.sum();
         if (totalCount == 0)
         {
-            return Double.NaN;
+            return 0;
         }
 
         double mean = sum.sum() / totalCount;
