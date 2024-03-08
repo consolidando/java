@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.elmolidelanoguera</groupId>
     <artifactId>stressor</artifactId>
-    <version>1</version>
+    <version>2</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -47,16 +47,25 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>3.1.1</version> 
+                <configuration>
+                    <url>https://maven.pkg.github.com/consolidando/stressor</url>
+                    <file>${project.build.directory}/${project.build.finalName}-jar-with-dependencies.jar</file>
+                </configuration>
+            </plugin>
          
         </plugins>
     </build>
 
     <distributionManagement>
-    <repository>
-        <id>github</id> 
-        <name>GitHub Packages</name>
-        <url>https://maven.pkg.github.com/consolidando/stressor</url>
-    </repository>
-</distributionManagement>
+        <repository>
+            <id>github</id> 
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/consolidando/stressor</url>
+        </repository>
+    </distributionManagement>
    
 </project>
