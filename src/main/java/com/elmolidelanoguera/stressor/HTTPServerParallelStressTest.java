@@ -19,6 +19,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Scanner;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,11 +27,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-//v1 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class HTTPServerParallelStressTest
 {
+
+    enum ConcurrencyLevel
+    {
+        A,
+        B,
+        C
+    }
 
     // settings
     private static int numRequestsPerCycle = 0;
@@ -46,23 +53,20 @@ public class HTTPServerParallelStressTest
     private static final AtomicLong maximumConcurrentRequestsAchieve = new AtomicLong(0L);
     private static final AtomicLong responseNumber = new AtomicLong(0);
 
-    // errors & exceptions
-    private static final AtomicLong exceptionAfterRetrying = new AtomicLong(0);
-    private static final AtomicLong timeoutException = new AtomicLong(0);
-    private static final AtomicLong connexionException = new AtomicLong(0);
-    private static final AtomicLong otherException = new AtomicLong(0);
-    private static final AtomicLong responseError = new AtomicLong(0);
-
-    // statistics
-    private static final RealTimeStatistics responseStatistics = new RealTimeStatistics();
-    private static final RealTimeStatistics concurrentAStatistics = new RealTimeStatistics();
-    private static final RealTimeStatistics concurrentBStatistics = new RealTimeStatistics();
-    private static final RealTimeStatistics concurrentCStatistics = new RealTimeStatistics();
+    // statistics in request and response
+    // Times are saved as microseconds because using nanoseconds causes overflow 
+    // in the standard deviation calculation.
+    private static final RealTimeStatistics timeBetweenRequestLevelA = new RealTimeStatistics();
+    private static final RealTimeStatistics timeBetweenRequestLevelB = new RealTimeStatistics();
+    private static final RealTimeStatistics timeBetweenRequestLevelC = new RealTimeStatistics();
+    private static final ResponseInfo responseInfoLevelA = new ResponseInfo();
+    private static final ResponseInfo responseInfoLevelB = new ResponseInfo();
+    private static final ResponseInfo responseInfoLevelC = new ResponseInfo();
 
     private static PrintStream fileout = null;
-    private static String parameter_6 = null;
+    private static String fileoutNameSuffix = null;
 
-    //v1 private static final AtomicLong previousRequestTime = new AtomicLong(0);
+    // 
     private static final ReentrantLock previousRequestTime2Lock = new ReentrantLock();
     private static volatile long timeToSendAllRequests = 0;
     private static long sendRequests = 0;
@@ -99,7 +103,7 @@ public class HTTPServerParallelStressTest
         minimumTimeBetweenRequestsA = Constants.TIME_BETWEEN_REQUESTS_IN_CONCURRENT_REQUEST_A;
         minimumTimeBetweenRequestsB = Constants.TIME_BETWEEN_REQUESTS_IN_CONCURRENT_REQUEST_B;
         minimumTimeBetweenRequestsC = Constants.TIME_BETWEEN_REQUESTS_IN_CONCURRENT_REQUEST_C;
-        
+
         requestNumber = Constants.CYCLE_NUMBER * numRequestsPerCycle;
 
         // main parameters
@@ -117,7 +121,7 @@ public class HTTPServerParallelStressTest
 
                     if (args.length == 6)
                     {
-                        parameter_6 = args[5];
+                        fileoutNameSuffix = args[5];
                     }
 
                 } catch (NumberFormatException e)
@@ -127,7 +131,7 @@ public class HTTPServerParallelStressTest
                 }
             } else
             {
-                System.out.println("java -jar stressor.jar A A_B B B_C C");
+                System.out.println("java -jar stressor.jar A AtoB B BtoC C");
                 System.exit(1); // Terminate the program
             }
         }
@@ -156,9 +160,9 @@ public class HTTPServerParallelStressTest
                 .append(maximumConcurrentRequest).append(" ")
                 .append(minimumTimeBetweenRequestsC / 1000L).append("\u00B5s");
 
-        if (parameter_6 != null)
+        if (fileoutNameSuffix != null)
         {
-            commandBuilder.append(" ").append(parameter_6);
+            commandBuilder.append(" ").append(fileoutNameSuffix);
         }
 
         return commandBuilder.toString();
@@ -214,7 +218,12 @@ public class HTTPServerParallelStressTest
 
             // Submit a task to make concurrent requests as virtual thread
             // => this task does not have its own platform thread
-            executor.submit(() -> masterTaskPlus(executor, latch));
+            executor.submit((Callable<Void>) () ->
+            {
+                masterTask(executor, latch);
+                return null;
+            });
+            
 
             // Wait for all requests to complete or timeout
             if (!latch.await(Constants.MAXIMUM_TIME_ALL_THREADS, TimeUnit.MILLISECONDS))
@@ -236,24 +245,8 @@ public class HTTPServerParallelStressTest
 
     }
 
-    private static void masterTaskPlus(ExecutorService executor, CountDownLatch latch)
-    {
-        try
-        {
-            masterTask(executor, latch);
-        } catch (InterruptedException ex)
-        {
-            Logger.getLogger(HTTPServerParallelStressTest.class.getName()).log(Level.SEVERE, null, ex);
-        }
-    }
-
     private static void masterTask(ExecutorService executor, CountDownLatch latch) throws InterruptedException
     {
-//V1        final Semaphore semaphore = new Semaphore(Constants.PLATFORM_THREADS_USED + 1);
-        long taskSwitchDelay;
-//V1         long startBlockTime;
-
-//V1         startBlockTime = System.nanoTime();
         for (int cycleNumber = 0; cycleNumber < Constants.CYCLE_NUMBER; cycleNumber++)
         {
             for (int cycleRequestNumber = 0; cycleRequestNumber < numRequestsPerCycle; cycleRequestNumber++)
@@ -261,37 +254,32 @@ public class HTTPServerParallelStressTest
                 final int __cycleRequestNumber = cycleRequestNumber;
                 final int __requestNumber = cycleNumber * numRequestsPerCycle + cycleRequestNumber + 1;
 
-                //V1                 semaphore.acquire();
                 executor.submit(() ->
                 {
                     // minimum time between request according to the  current concurrency
-                    long __diff = controlTimeBetweenRequestV2();
+                    long __diff = controlTimeBetweenRequest();
 
                     //  
                     long __concurrentRequests = concurrentRequests.incrementAndGet();
                     maximumConcurrentRequestsAchieve.updateAndGet(current -> Math.max(current, __concurrentRequests));
 
                     // statistics of real time between request  
-                    concurrencyStatistics(__concurrentRequests, __diff);
+                    ConcurrencyLevel concurrencyLevel = getConcurrencyLevel(__concurrentRequests);
 
-                    //V1                   semaphore.release();
-                    makeRequestWith3Retries(__requestNumber, Constants.ids.get(__cycleRequestNumber), latch);
+                    RealTimeStatistics timeBetweenRequest
+                            = timeBetweenRequestOnConcurrencyLevel(concurrencyLevel);
+
+                    if (__diff != 0)
+                    {
+                        timeBetweenRequest.addValue(__diff / 1000L);
+                    }
+
+                    makeRequestWith3Retries(concurrencyLevel,
+                            __requestNumber, Constants.ids.get(__cycleRequestNumber), latch);
                 });
 
-                //V1                taskSwitchDelay = 0;
-                // ensures that each block meets the minimum time between requests
-                //V1                if ((__requestNumber % (Constants.PLATFORM_THREADS_USED + 1)) == 0)
-                //V1                 {
-                //V1                     long blockTime = System.nanoTime() - startBlockTime;
-                //V1                     taskSwitchDelay = (getDelayBasedOnConcurrency() * Constants.PLATFORM_THREADS_USED) - blockTime;
-                //V1                     startBlockTime = System.nanoTime();
-                //V1                 }
-                //V1                 if (taskSwitchDelay <= 0)
-                //V1                 {
-                taskSwitchDelay = Constants.MINIMUM_TIME_BETWEEN_REQUEST;
-                //V1                 }
                 // gives access to new tasks
-                taskSwitchAndDelayInNanos(taskSwitchDelay);
+                taskSwitchAndDelayInNanos(Constants.MINIMUM_TIME_BETWEEN_REQUEST);
             }
         }
 
@@ -299,16 +287,7 @@ public class HTTPServerParallelStressTest
                 + (System.currentTimeMillis() - startTime) + " ms");
     }
 
-//v1     private static long controlTimeBetweenRequestV1()
-//v1    {
-//v1        long diff;
-//v1        long previous;
-//v1        previous = previousRequestTime.get();
-//v1        diff = (previous != 0) ? (System.nanoTime() - previous) : 0;
-//v1        previousRequestTime.set(System.nanoTime());
-//v1        return (diff);
-//v1    }
-    private static long controlTimeBetweenRequestV2()
+    private static long controlTimeBetweenRequest()
     {
         long diff = 0;
 
@@ -363,47 +342,75 @@ public class HTTPServerParallelStressTest
         return (minimumDelayInNs);
     }
 
-    static void concurrencyStatistics(long concurrentRequests, long requestPeriode)
+    static ConcurrencyLevel getConcurrencyLevel(long concurrentRequests)
     {
-        if (requestPeriode > 0)
+        ConcurrencyLevel concurrencyLevel = ConcurrencyLevel.A;
+
+        if (concurrentRequests >= minimumConcurrentRequest)
         {
-            if (concurrentRequests >= minimumConcurrentRequest)
+            if (concurrentRequests > maximumConcurrentRequest)
             {
-                if (concurrentRequests > maximumConcurrentRequest)
-                {
-                    concurrentCStatistics.addValue(requestPeriode);
-                } else
-                {
-                    concurrentBStatistics.addValue(requestPeriode);
-                }
+                concurrencyLevel = ConcurrencyLevel.C;
             } else
             {
-                concurrentAStatistics.addValue(requestPeriode);
+                concurrencyLevel = ConcurrencyLevel.B;
             }
         }
+
+        return (concurrencyLevel);
     }
 
-    private static void makeRequestWith3Retries(int requestNumber, int id, CountDownLatch latch)
+    static RealTimeStatistics timeBetweenRequestOnConcurrencyLevel(ConcurrencyLevel concurrencyLevel)
+    {
+        return switch (concurrencyLevel)
+        {
+            case B ->
+                timeBetweenRequestLevelB;
+            case C ->
+                timeBetweenRequestLevelC;
+            default ->
+                timeBetweenRequestLevelA;
+        };
+    }
+
+    static ResponseInfo responseInfoOnConcurrencyLevel(ConcurrencyLevel concurrencyLevel)
+    {
+        return switch (concurrencyLevel)
+        {
+            case B ->
+                responseInfoLevelB;
+            case C ->
+                responseInfoLevelC;
+            default ->
+                responseInfoLevelA;
+        };
+
+    }
+
+    private static void makeRequestWith3Retries(ConcurrencyLevel concurrencyLevel,
+            int requestNumber, int id, CountDownLatch latch)
     {
         try
         {
+            ResponseInfo responseInfo
+                    = responseInfoOnConcurrencyLevel(concurrencyLevel);
             int retries = 0;
             while (retries < Constants.REQUEST_RETRIES_NUMBER)
             {
                 try
                 {
-                    makeRequest(requestNumber, id);
+                    makeRequest(responseInfo, requestNumber, id);
                     break;
                 } catch (IOException e)
                 {
                     switch (e)
                     {
                         case SocketTimeoutException s ->
-                            timeoutException.incrementAndGet();
+                            responseInfo.incrementTimeoutExceptions();
                         case ConnectException s ->
-                            connexionException.incrementAndGet();
+                            responseInfo.incrementConnexionExceptions();
                         default ->
-                            otherException.incrementAndGet();
+                            responseInfo.incrementOtherExceptions();
                     }
 
                     retries++;
@@ -417,7 +424,7 @@ public class HTTPServerParallelStressTest
             if (retries >= Constants.REQUEST_RETRIES_NUMBER)
             {
                 TRACE_MAKE_REQUEST("! - Response " + requestNumber + " MAXIMUM OF RETRIES !!! ");
-                exceptionAfterRetrying.incrementAndGet();
+                responseInfo.incrementExceptionsAfterRetrying();
             }
         } catch (URISyntaxException e)
         {
@@ -429,7 +436,8 @@ public class HTTPServerParallelStressTest
         }
     }
 
-    private static void makeRequest(int requestNumber, int id) throws URISyntaxException, MalformedURLException, IOException
+    private static void makeRequest(ResponseInfo responseInfo, int requestNumber, int id)
+            throws URISyntaxException, MalformedURLException, IOException
     {
         HttpURLConnection connection = null;
         try
@@ -441,7 +449,7 @@ public class HTTPServerParallelStressTest
             connection.setConnectTimeout(Constants.MAXIMUM_TIME_PER_REQUEST_CONNECTION);
             connection.setReadTimeout(Constants.MAXIMUM_TIME_PER_REQUEST_READ);
 
-            long startTime = System.nanoTime();
+            long startGet = System.nanoTime();
 
             connection.setRequestMethod("GET");
 
@@ -449,20 +457,20 @@ public class HTTPServerParallelStressTest
 
             if (responseCode == HttpURLConnection.HTTP_OK)
             {
-                long endTime = System.nanoTime();
-                long requestTime = endTime - startTime;
-                responseStatistics.addValue(requestTime);
+                long endGet = System.nanoTime();
+                long reponseTime = endGet - startGet;
+                responseInfo.responseTime.addValue(reponseTime / 1000L);
 
                 long localResponseNumber = responseNumber.incrementAndGet();
                 String difference = (localResponseNumber == requestNumber) ? "= " : "* ";
 
                 TRACE_MAKE_REQUEST(difference + localResponseNumber
                         + " - Response " + requestNumber + ": OK, in "
-                        + String.format("%.2f", (double) requestTime / 1000_000.00)
+                        + String.format("%.2f", (double) reponseTime / 1000_000.00)
                         + " ms");
             } else
             {
-                responseError.incrementAndGet();
+                responseInfo.incrementErrors();
                 TRACE_MAKE_REQUEST("! - Response " + requestNumber + ": Error Code: " + responseCode);
             }
         } finally
@@ -503,47 +511,75 @@ public class HTTPServerParallelStressTest
 
 //        
         long requestPerSecond = (long) (requestNumber * 1000L) / totalTime;
-        double averageConcurrentRequests = (responseStatistics.calculateMean() * requestNumber) / (totalTime * 1000_000L);
+        double responseTimeMean = (responseInfoLevelA.responseTime.calculateMean()
+                + responseInfoLevelB.responseTime.calculateMean()
+                + responseInfoLevelC.responseTime.calculateMean()) / 3;
+        double averageConcurrentRequests = (responseTimeMean * requestNumber) / (totalTime * 1000L);
 
         long requestPerSecondWithoutAllResponses = (long) (requestNumber * 1000L) / timeToSendAllRequests;
         long microsPerRequest = (timeToSendAllRequests * 1000L) / requestNumber;
 
         RESULT_OUTPUT("*** Without waiting all responses ***");
-        RESULT_OUTPUT("Request per second: " + requestPerSecondWithoutAllResponses);
+        RESULT_OUTPUT("Requests per second: " + requestPerSecondWithoutAllResponses);
         RESULT_OUTPUT("Microseconds per request: " + microsPerRequest + " \u00B5s/request");
 
         RESULT_OUTPUT("\n*** Waiting all responses ***");
-        RESULT_OUTPUT("Request per second: " + requestPerSecond);
-        RESULT_OUTPUT("Maximum concurrent request: " + maximumConcurrentRequestsAchieve);
+        RESULT_OUTPUT("Requests per second: " + requestPerSecond);
+        RESULT_OUTPUT("Maximum concurrent requests: " + maximumConcurrentRequestsAchieve);
         RESULT_OUTPUT("Average of concurrent requests: "
                 + String.format("%.2f", averageConcurrentRequests));
         RESULT_OUTPUT("Total time of all requests: " + totalTime + " ms");
-        //        
-        RESULT_OUTPUT("Minimum time response: "
-                + String.format("%.2f", (double) (responseStatistics.getMinimumRequestTime()) / 1000_000.00) + " ms");
-        RESULT_OUTPUT("Maximum time response: "
-                + String.format("%.2f", (double) responseStatistics.getMaximumRequestTime() / 1000_000.00) + " ms");
+
+        RESULT_OUTPUT("\nRESPONSE ACCORDING TO CONCURRENCY ---------------------------");
+
+        for (ConcurrencyLevel concurrencyLevel : ConcurrencyLevel.values())
+        {
+            ResponseInfo responseInfo = responseInfoOnConcurrencyLevel(concurrencyLevel);
+            String title
+                    = "************************* Concurrency level %s ***************".formatted(concurrencyLevel);
+            RESULT_OUTPUT(title);
+            //        
+            RESULT_OUTPUT("Request Number: " + responseInfo.responseTime.getCount());
+            RESULT_OUTPUT("Minimum time response: "
+                    + String.format("%.2f", (double) (responseInfo.responseTime.getMinimum()) / 1000.00) + " ms");
+            RESULT_OUTPUT("Maximum time response: "
+                    + String.format("%.2f", (double) responseInfo.responseTime.getMaximum() / 1000.00) + " ms");
+            RESULT_OUTPUT("Mean: "
+                    + String.format("%.2f", responseInfo.responseTime.calculateMean() / 1000.00) + " ms");
+            RESULT_OUTPUT("Standard Deviation: "
+                    + String.format("%.2f", responseInfo.responseTime.calculateStandardDeviation() / 1000.00) + " ms");
+            //
+            RESULT_OUTPUT("Requests with timeout exceptions: " + responseInfo.getTimeoutExceptions());
+            RESULT_OUTPUT("Requests with connexion exceptions: " + responseInfo.getConnexionExceptions());
+            RESULT_OUTPUT("Requests with other exceptions: " + responseInfo.getOtherExceptions());
+            RESULT_OUTPUT("Requests with exceptions after retrying: " + responseInfo.getExceptionsAfterRetrying());
+            RESULT_OUTPUT("Requests with error: " + responseInfo.getErrors());
+
+        }
+
+        // print server statistics ---------------------------------------------
+        RESULT_OUTPUT("\nSERVER DB ACCESS STATISTICS: --------------------------------");
+        GetIdStatistics getIdStatistics = ServerStatistics.get();
+
+        RESULT_OUTPUT("Total Request: " + getIdStatistics.requestNumber());
+        RESULT_OUTPUT("Maximum Concurrent Requests: " + getIdStatistics.maximumConcurrentRequest());
+        RESULT_OUTPUT("Minimum Request Time: "
+                + String.format("%.2f", getIdStatistics.minimumRequestTime() / 1000_000.00) + " ms");
+        RESULT_OUTPUT("Maximum Request Time: "
+                + String.format("%.2f", getIdStatistics.maximumRequestTime() / 1000_000.00) + " ms");
         RESULT_OUTPUT("Mean: "
-                + String.format("%.2f", responseStatistics.calculateMean() / 1000_000.00) + " ms");
-        RESULT_OUTPUT("Standard Deviation: "
-                + String.format("%.2f", responseStatistics.calculateStandardDeviation() / 1000_000.00) + " ms");
-        //
-        RESULT_OUTPUT("Requests with timeout exception: " + timeoutException);
-        RESULT_OUTPUT("Requests with connexion exception: " + connexionException);
-        RESULT_OUTPUT("Requests with other exceptions: " + otherException);
-        RESULT_OUTPUT("Requests with exception after retrying: " + exceptionAfterRetrying);
-        RESULT_OUTPUT("Requests with error: " + responseError);
+                + String.format("%.2f", getIdStatistics.mean() / 1000_000.00) + " ms");
+        RESULT_OUTPUT("Deviation: "
+                + String.format("%.2f", getIdStatistics.deviation() / 1000_000.00) + " ms");
 
-        // print server statistics 
-        ServerStatistics.get();
-
+        // ---------------------------------------------------------------------
         RESULT_OUTPUT("\nEQUIVALENT CALL ---------------------------------------------");
         RESULT_OUTPUT(commandString());
 
         RESULT_OUTPUT("\nCLIENT SETTINGS ---------------------------------------------");
         RESULT_OUTPUT("Platform threads used: " + platformThreadsUsed);
         RESULT_OUTPUT("A: Until " + minimumConcurrentRequest
-                + " concurrent request, new request each "
+                + " concurrent requests, new request each "
                 + minimumTimeBetweenRequestsA / 1000L + " \u00B5s");
         RESULT_OUTPUT("B: From " + minimumConcurrentRequest + " to " + maximumConcurrentRequest
                 + " concurrent requests, new requests each "
@@ -553,40 +589,24 @@ public class HTTPServerParallelStressTest
                 + minimumTimeBetweenRequestsC / 1000L + " \u00B5s");
         RESULT_OUTPUT("Total Request Number: " + requestNumber);
 
-        // real request in client time
-        RESULT_OUTPUT("\nREAL TIME BETWEEN REQUEST ACCORDING TO CONCURRENCY ----------");
-        RESULT_OUTPUT("*** Concurrence level A ***");
-        RESULT_OUTPUT("Request Number: " + concurrentAStatistics.getCount());
-        RESULT_OUTPUT("Minimum time between request: "
-                + String.format("%.2f", (double) (concurrentAStatistics.getMinimumRequestTime()) / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Maximum time between request: "
-                + String.format("%.2f", (double) concurrentAStatistics.getMaximumRequestTime() / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Mean: "
-                + String.format("%.2f", concurrentAStatistics.calculateMean() / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Standard Deviation: "
-                + String.format("%.2f", concurrentAStatistics.calculateStandardDeviation() / 1000.00) + " \u00B5s");
-
-        RESULT_OUTPUT("*** Concurrence level B ***");
-        RESULT_OUTPUT("Request Number: " + concurrentBStatistics.getCount());
-        RESULT_OUTPUT("Minimum time between request: "
-                + String.format("%.2f", (double) (concurrentBStatistics.getMinimumRequestTime()) / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Maximum time between request: "
-                + String.format("%.2f", (double) concurrentBStatistics.getMaximumRequestTime() / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Mean: "
-                + String.format("%.2f", concurrentBStatistics.calculateMean() / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Standard Deviation: "
-                + String.format("%.2f", concurrentBStatistics.calculateStandardDeviation() / 1000.00) + " \u00B5s");
-
-        RESULT_OUTPUT("*** Concurrence level C ***");
-        RESULT_OUTPUT("Request Number: " + concurrentCStatistics.getCount());
-        RESULT_OUTPUT("Minimum time between request: "
-                + String.format("%.2f", (double) (concurrentCStatistics.getMinimumRequestTime()) / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Maximum time between request: "
-                + String.format("%.2f", (double) concurrentCStatistics.getMaximumRequestTime() / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Mean: "
-                + String.format("%.2f", concurrentCStatistics.calculateMean() / 1000.00) + " \u00B5s");
-        RESULT_OUTPUT("Standard Deviation: "
-                + String.format("%.2f", concurrentCStatistics.calculateStandardDeviation() / 1000.00) + " \u00B5s");
+        //  --------------------------------------------------------------------
+        RESULT_OUTPUT("\nTIME BETWEEN REQUEST ACCORDING TO CONCURRENCY ---------------");
+        for (ConcurrencyLevel concurrencyLevel : ConcurrencyLevel.values())
+        {
+            RealTimeStatistics timeBetweenRequest = timeBetweenRequestOnConcurrencyLevel(concurrencyLevel);
+            String title
+                    = "************************* Concurrency level %s ***************".formatted(concurrencyLevel);
+            RESULT_OUTPUT(title);
+            RESULT_OUTPUT("Request Number: " + timeBetweenRequest.getCount());
+            RESULT_OUTPUT("Minimum time between request: "
+                    + String.format("%.2f", (double) (timeBetweenRequest.getMinimum())) + " \u00B5s");
+            RESULT_OUTPUT("Maximum time between request: "
+                    + String.format("%.2f", (double) timeBetweenRequest.getMaximum()) + " \u00B5s");
+            RESULT_OUTPUT("Mean: "
+                    + String.format("%.2f", timeBetweenRequest.calculateMean()) + " \u00B5s");
+            RESULT_OUTPUT("Standard Deviation: "
+                    + String.format("%.2f", timeBetweenRequest.calculateStandardDeviation()) + " \u00B5s");
+        }
 
         RESULT_OUTPUT("\nThis is the end. --------------------------------------------\n ");
 

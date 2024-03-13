@@ -10,7 +10,8 @@ The PLATFORM_THREADS_USED parameter restricts the number of platform threads uti
 
 ## Usage
 
-Execute the following command to use the application:
+Execute the following command to use the application: (You must use the version with the dependencies included that can be found at [packages](https://github.com/consolidando/stressor/packages/2093303) and it should be run on Java 21 or higher)
+
 
 **java -jar stressor.jar A AtoB B BtoC C**
 

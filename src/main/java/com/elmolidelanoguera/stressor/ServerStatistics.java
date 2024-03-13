@@ -34,41 +34,30 @@ public class ServerStatistics
 
         try
         {
-            HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
-
-            System.out.println("DELETE Server Statistics: " + response.statusCode());
+            HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());   
+            //System.out.println("DELETE Server Statistics: " + response.statusCode());
         } catch (IOException | InterruptedException ex)
         {
             Logger.getLogger(ServerStatistics.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
-    static void get()
+    static GetIdStatistics get()
     {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .build();
 
+        GetIdStatistics getIdStatistics = null;
         try
         {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            System.out.println("\nSERVER DB ACCESS STATISTICS: --------------------------------" );
+            
             if (response.statusCode() == 200)
             {
                 ObjectMapper mapper = new ObjectMapper();
-                GetIdStatistics idStatistics = mapper.readValue(response.body(), GetIdStatistics.class);
+                getIdStatistics = mapper.readValue(response.body(), GetIdStatistics.class);
 
-                System.out.println("Total Request: " + idStatistics.requestNumber());
-                System.out.println("Maximum Concurrent Request: " + idStatistics.maximumConcurrentRequest());
-                System.out.println("Minimum Request Time: " + 
-                        String.format("%.2f", idStatistics.minimumRequestTime()/ 1000_000.00) + " ms");
-                System.out.println("Maximum Request Time: " +
-                     String.format("%.2f", idStatistics.maximumRequestTime()/ 1000_000.00) + " ms");
-                System.out.println("Mean: " +
-                         String.format("%.2f", idStatistics.mean() / 1000_000.00) + " ms");
-                System.out.println("Deviation: " +
-                         String.format("%.2f", idStatistics.deviation() / 1000_000.00) + " ms");
             } else
             {
                 System.out.println("Error: " + response.statusCode());
@@ -77,6 +66,8 @@ public class ServerStatistics
         {
             Logger.getLogger(ServerStatistics.class.getName()).log(Level.SEVERE, null, ex);
         }
+        
+        return(getIdStatistics);
     }
 
 }

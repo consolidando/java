@@ -12,31 +12,31 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class RealTimeStatistics
 {
-    private final AtomicLong minimumRequestTimeInNs = new AtomicLong(1000_000_000L);
-    private final AtomicLong maximumRequestTimeInNs = new AtomicLong(0L);
+    private final AtomicLong minimum = new AtomicLong(1000_000_000L);
+    private final AtomicLong maximum = new AtomicLong(0L);
     private final DoubleAdder sum = new DoubleAdder(); // Sum of all values
     private final DoubleAdder sumOfSquares = new DoubleAdder(); // Sum of squares of all values
     private final LongAdder count = new LongAdder(); // Count of values        
 
     // Method to register a value during a request concurrently
-    public void addValue(long requestTimeInNs)
+    public void addValue(long value)
     {
-        sum.add(requestTimeInNs);
-        sumOfSquares.add(requestTimeInNs * requestTimeInNs);
+        sum.add(value);
+        sumOfSquares.add(value * value);
         count.increment();
 
-        minimumRequestTimeInNs.updateAndGet(current -> Math.min(current, requestTimeInNs));
-        maximumRequestTimeInNs.updateAndGet(current -> Math.max(current, requestTimeInNs));                
+        minimum.updateAndGet(current -> Math.min(current, value));
+        maximum.updateAndGet(current -> Math.max(current, value));                
     }
     
-    public long getMaximumRequestTime()
+    public long getMaximum()
     {
-        return(maximumRequestTimeInNs.get());
+        return(maximum.get());
     }
     
-    public long getMinimumRequestTime()
+    public long getMinimum()
     {
-        return(minimumRequestTimeInNs.get());
+        return(minimum.get());
     }
        
     public long getCount()
