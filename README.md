@@ -13,12 +13,12 @@ The PLATFORM_THREADS_USED parameter restricts the number of platform threads uti
 Execute the following command to use the application: (You must use the version with the dependencies included that can be found at [packages](https://github.com/consolidando/stressor/packages/2093303) and it should be run on Java 21 or higher)
 
 
-**java -jar stressor.jar A AtoB B BtoC C**
+**java -jar stressor.jar α AtoB β BtoC κ**
 
 Where:
-- Parameter **A** represents the minimum number of microseconds to wait between each request until there are **AtoB** concurrent requests.
-- Parameter **B** represents the minimum number of microseconds to wait between each request between **AtoB** and **BtoC** concurrent requests.
-- Parameter **C** represents the minimum number of microseconds to wait between each request after getting **BtoC** concurrent requests.
+- Parameter **α** represents the minimum number of microseconds to wait between each request until there are **AtoB** concurrent requests.
+- Parameter **β** represents the minimum number of microseconds to wait between each request between **AtoB** and **BtoC** concurrent requests.
+- Parameter **κ** represents the minimum number of microseconds to wait between each request after getting **BtoC** concurrent requests.
 
 ## Configuration
 
